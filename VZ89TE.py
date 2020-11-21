@@ -13,15 +13,19 @@ VZ89TE_CMD_GETR0 = bytes([0x10,0,0,0,0,0xEF])
 VZ_89TE_DATE_CODE = 0x0D
 
 class VZ89TE:
+    
     def __init__(self, i2c_bus=None, addr=VZ89TE_Address):
-        print("vz89 object initialized")
         self._i2c = i2c_bus
         self._i2c_addr = addr
         self._d = bytes([0,0,0,0,0,0,0])
         self._crc = 0
+        self.tVOC = 0
+        self.CO2 = 0
+        self.Res = 0
+        self.ErrStatus = 0
         if i2c_bus is None:
-            raise ValueError('An I2C object is required.')
-  
+          raise ValueError('An I2C object is required.')
+    
     def calcCrc(self, _d):
         _sum = 0
         self._crc = 0
@@ -31,19 +35,23 @@ class VZ89TE:
         self._crc += _sum // 0x100
         self._crc = 0xff-self._crc
         return self._crc
-
+    
     def getAddr(self):
         return self._i2c_addr
-
+    
     def cmdGetStatus(self):
         self._acks = self._i2c.writeto(self._i2c_addr,VZ89TE_CMD_GETSTATUS)
+        #print("Acks: ", self._acks)
         utime.sleep_ms(100)
         self._d = self._i2c.readfrom(self._i2c_addr, 7)
         self.calcCrc(self._d)
+        #print("CRC empfangen: ", self._rd[-1], " CRC berechnet: ", self._crc)
+        #for b in self._rd:
+        #    print(" ", hex(b))
         if(self._d[-1] != self._crc):
             raise ValueError('crc error.')
         return self._d
-
+    
     def getData(self):
         self.cmdGetStatus()
         self.tVOC = (self._d[0]-13)*1000/229
@@ -54,7 +62,7 @@ class VZ89TE:
                  "CO2": self.CO2,
                  "Res": self.Res,
                  "ErrStatus": self.ErrStatus }
-             
+
     def cmdGetRevision(self):
         self._i2c.writeto(self._i2c_addr,VZ89TE_CMD_GETREVISION)
         utime.sleep_ms(100)
@@ -63,7 +71,7 @@ class VZ89TE:
         if(self._r[-1] != self._crc):
             raise ValueError('crc error.')
         return self._r
-
+    
     def getRevision(self):
         self.cmdGetRevision()
         self.year = self._r[0]
@@ -83,12 +91,9 @@ class VZ89TE:
         if(self._r0[-1] != self._crc):
             raise ValueError('crc error.')
         return self._r0
-
+    
     def getR0(self):
         self.cmdGetR0()
         return self._r0[0] + 256 * self._r0[1]
-  
 
-
-
-
+    

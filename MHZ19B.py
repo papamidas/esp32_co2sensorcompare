@@ -21,8 +21,8 @@ class MHZ19B:
         for _b in self._d[1:-1]:
             self._checksum += _b
             self._checksum = self._checksum & 0xff
-            self._checksum = 0xff - self._checksum
-            self._checksum += 1
+        self._checksum = 0xff - self._checksum
+        self._checksum += 1
         return self._checksum
 
     def getCO2(self):
@@ -30,7 +30,7 @@ class MHZ19B:
         self._d = self._uart.read(9)
         self.getCheckSum()
         
-#        print("crc ist: " + str(self._d[-1]) + " soll: " + str(self._checksum))
+        #print("crc ist: " + str(self._d[-1]) + " soll: " + str(self._checksum))
         
         if(self._d[-1] != self._checksum):
             raise ValueError('crc error.')

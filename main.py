@@ -1,48 +1,56 @@
 # main.py
-# DM1CR Nov 14, 2020
-# CO2 sensor comparison
-# for micropython on a ESP32
+# DM1CR Nov 21, 2020
+# Comparison of values from various CO2/VOC Sensors
+# connected via I2C/UART to a ESP32 board
+# with SSD1306 display
 #
 from VZ89TE import VZ89TE
+from ssd1306 import SSD1306_I2C
+from MHZ19B import *
+from BME680 import *
+from SCD30 import SCD30
 import utime
-from machine import Pin, I2C
+from machine import Pin, I2C, UART
 
-def mapvalue(x, in_min, in_max, out_min, out_max):
-    if (x > in_max):
-        x = inmax
-    if (x < in_min):
-        x = in_min
-    return (x - in_min) * (out_max - out_min) // (in_max - in_min) + out_min
-
-led = Pin(23, Pin.OUT)
+led = Pin(19, Pin.OUT)
 led.on()
 
-sensori2c = I2C(1,scl=Pin(22), sda=Pin(21), freq = 100000)
-vz89te = VZ89TE(sensori2c)
+# Pin 16 is SSD1306 Display Enable
+pin16 = Pin(16, Pin.OUT)
+pin16.on()
+displayi2c = I2C(scl=Pin(15), sda=Pin(4))
+display = SSD1306_I2C(128, 64, displayi2c)
+display.fill(0)
 
-mhz19uart = machine.UART(1, tx=32, rx=33, baudrate=9600, timeout=1000)
-mhz19 = MHZ19(mhz19uart)
+sensori2c = I2C(1,scl=Pin(22), sda=Pin(21), freq = 50000)
+vz = VZ89TE(sensori2c)
+bme = BME680_I2C(sensori2c)
+scd = SCD30(sensori2c)
+mhz = MHZ19B( UART(1, tx=32, rx=33, baudrate=9600, timeout=1000))
 
-print("I2C slave found at adr ", hex(sensori2c.scan()[0]) )
-print("Revision: ", vz89te.getRevision())
-print("Year: ", vz89te.getRevision()["Year"])
-print("Month: ", vz89te.getRevision()["Month"])
-print("Day: ", vz89te.getRevision()["Day"])
+print("Display Width: ", display.width)
+print("Display Height: ", display.height)
+print("I2C slave(s) found at adr ")
+for ad in sensori2c.scan():
+    print("%x " % ad)
+print("Revision: ", vz.getRevision())
+print("Year: ", vz.getRevision()["Year"])
+print("Month: ", vz.getRevision()["Month"])
+print("Day: ", vz.getRevision()["Day"])
 
 CO2DISPMAX = 1000
 CO2DISPMIN = 400
-co2 = 0
+
+scd.start()
 
 while True:
 
     try:
 
-#        co2 = vz89te.getData()["CO2"]
-#        print(co2)
-         print("VZ89TE: " + str(sensor.getData()))
-         
-         print("MHZ19: " + str(mhz19.getCO2()))
-
+         print("VZ89TE: ", vz.getData())
+         print("BME680: Temp ", bme.temperature, " Hum ", bme.humidity, " Press ", bme.pressure, " Gas ", bme.gas)
+         print("MHZ19: CO2 " + str(mhz.getCO2()))
+    
     except ValueError:
 
          print("oops! crc error!")
@@ -50,8 +58,30 @@ while True:
     except OSError:
 
          print("oops! OS error!")
-
+        
+    success = scd.read()
+    scdv={}
+    if success == True:
+        scdv = scd.values
+        print("SCD30: ", scdv)
+        #(s_co2, s_temperature, s_humidity, s_timestamp) = scd.values
+        #print("SCD30: CO2 ", s_co2, " Temp ", s_temperature, " Hum ", s_humidity)
+    else:
+        print("SCD30 read failure")
+    
+    
+    display.fill(0)
+    pos = 0
+    linincrement = 10
+    display.text("m CO2: " + str(int(mhz.CO2)) + " ppm", 0, pos)
+    pos += linincrement
+    display.text("v CO2: " + str(int(vz.CO2)) + " ppm", 0, pos)
+    pos += linincrement
+    display.text("s CO2: " + str(scdv["co2"]), 0, pos)
+    pos += linincrement
+    display.text("b Res: " + str(int(bme.gas)), 0, pos)
+    display.show()
     led.off()
-    utime.sleep_ms(500)
+    utime.sleep_ms(1000)
     led.on()
-    utime.sleep(2)
+    utime.sleep_ms(1000)
